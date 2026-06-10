@@ -18,6 +18,7 @@ let selectedStrength = 3;
 let activePair = null;
 let dragState = null;
 let menuOpen = false;
+let isAnimatingChoice = false;
 
 function persist(patch = {}) {
   state = saveState({ ...state, ...patch });
@@ -93,7 +94,7 @@ function removePerson(id) {
 
 function choose(winnerId) {
   const pair = ensureActivePair();
-  if (!pair) return;
+  if (!pair || isAnimatingChoice) return;
   const comparisons = setComparison({
     pair,
     winnerId,
@@ -110,6 +111,21 @@ function choose(winnerId) {
   }
   selectedStrength = 3;
   render();
+}
+
+function animateAndChoose(winnerId, direction) {
+  if (isAnimatingChoice) return;
+  const card = app.querySelector(`[data-card-choice="${winnerId}"]`);
+  if (!card) {
+    choose(winnerId);
+    return;
+  }
+  isAnimatingChoice = true;
+  card.classList.add(direction === "left" ? "is-exiting-left" : "is-exiting-right");
+  setTimeout(() => {
+    isAnimatingChoice = false;
+    choose(winnerId);
+  }, 230);
 }
 
 function resetAll() {
@@ -403,7 +419,10 @@ function bindGlobalEvents() {
     button.addEventListener("click", () => choose(button.dataset.choose));
   });
   app.querySelectorAll("[data-card-choice]").forEach((button) => {
-    button.addEventListener("click", () => choose(button.dataset.cardChoice));
+    button.addEventListener("click", () => {
+      const direction = button.classList.contains("left") ? "left" : "right";
+      animateAndChoose(button.dataset.cardChoice, direction);
+    });
   });
 }
 
@@ -431,6 +450,7 @@ function bindSwipe(pair) {
   if (!stage) return;
 
   stage.addEventListener("pointerdown", (event) => {
+    if (isAnimatingChoice) return;
     dragState = {
       startX: event.clientX,
       startY: event.clientY,
@@ -454,8 +474,8 @@ function bindSwipe(pair) {
     stage.style.removeProperty("--swipe-x");
     dragState = null;
     if (!didSwipe) return;
-    if (offset > 64) choose(pair.b.id);
-    if (offset < -64) choose(pair.a.id);
+    if (offset > 64) animateAndChoose(pair.b.id, "right");
+    if (offset < -64) animateAndChoose(pair.a.id, "left");
   });
 
   stage.addEventListener("pointercancel", () => {

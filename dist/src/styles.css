@@ -370,7 +370,7 @@ button:focus-visible {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   min-height: 228px;
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .choice-card {
@@ -387,8 +387,11 @@ button:focus-visible {
   color: var(--text);
   text-align: center;
   overflow: hidden;
+  touch-action: none;
+  user-select: none;
   transition:
-    transform 160ms ease,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms ease,
     box-shadow 160ms ease,
     border-color 160ms ease;
 }
@@ -399,6 +402,16 @@ button:focus-visible {
 
 .choice-card.right {
   transform: translateX(calc(var(--swipe-x) * 0.24));
+}
+
+.choice-card.is-exiting-left {
+  opacity: 0;
+  transform: translateX(-150%) rotate(-8deg);
+}
+
+.choice-card.is-exiting-right {
+  opacity: 0;
+  transform: translateX(150%) rotate(8deg);
 }
 
 .choice-card:hover {
