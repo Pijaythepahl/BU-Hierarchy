@@ -110,7 +110,11 @@ function choose(winnerId) {
     view = "ranking";
   }
   selectedStrength = 3;
-  render();
+  if (view === "compare") {
+    refreshCompareView();
+  } else {
+    render();
+  }
 }
 
 function animateAndChoose(winnerId, direction) {
@@ -194,20 +198,7 @@ function renderShell(content) {
         </div>
       </header>
 
-      <section class="status-strip" aria-label="Fortschritt">
-        <div>
-          <span class="metric-value">${progress.completed}</span>
-          <span class="metric-label">erledigt</span>
-        </div>
-        <div>
-          <span class="metric-value">${progress.open}</span>
-          <span class="metric-label">offen</span>
-        </div>
-        <div>
-          <span class="metric-value">${progress.percent}%</span>
-          <span class="metric-label">Fortschritt</span>
-        </div>
-      </section>
+      ${statusStripHtml(progress)}
 
       ${content}
 
@@ -220,6 +211,25 @@ function renderShell(content) {
   `;
 
   bindGlobalEvents();
+}
+
+function statusStripHtml(progress) {
+  return `
+    <section class="status-strip" aria-label="Fortschritt">
+      <div>
+        <span class="metric-value">${progress.completed}</span>
+        <span class="metric-label">erledigt</span>
+      </div>
+      <div>
+        <span class="metric-value">${progress.open}</span>
+        <span class="metric-label">offen</span>
+      </div>
+      <div>
+        <span class="metric-value">${progress.percent}%</span>
+        <span class="metric-label">Fortschritt</span>
+      </div>
+    </section>
+  `;
 }
 
 function navButton(target, label, icon) {
@@ -295,8 +305,14 @@ function renderCompare() {
     return;
   }
 
+  renderShell(compareContent(pair, ranking));
+  fitChoiceNames();
+  bindSwipe(pair);
+}
+
+function compareContent(pair, ranking) {
   const pairLabel = `${pair.a.name} / ${pair.b.name}`;
-  renderShell(`
+  return `
     <section class="view compare-layout">
       <div class="compare-panel">
         <div class="section-heading compact">
@@ -328,8 +344,24 @@ function renderCompare() {
         ${rankingList(ranking.ranked.slice(0, 5), true)}
       </aside>
     </section>
-  `);
+  `;
+}
+
+function refreshCompareView() {
+  const pair = ensureActivePair();
+  const ranking = computeRanking(state.people, state.comparisons);
+  const statusStrip = app.querySelector(".status-strip");
+  const compareLayout = app.querySelector(".compare-layout");
+
+  if (!pair || !statusStrip || !compareLayout) {
+    render();
+    return;
+  }
+
+  statusStrip.outerHTML = statusStripHtml(ranking.progress);
+  compareLayout.outerHTML = compareContent(pair, ranking);
   fitChoiceNames();
+  bindCompareEvents();
   bindSwipe(pair);
 }
 
@@ -406,6 +438,10 @@ function bindGlobalEvents() {
   app.querySelectorAll("[data-person-name]").forEach((input) => {
     input.addEventListener("change", () => renamePerson(input.dataset.personName, input.value));
   });
+  bindCompareEvents();
+}
+
+function bindCompareEvents() {
   app.querySelectorAll("[data-strength]").forEach((button) => {
     button.addEventListener("click", () => {
       selectedStrength = Number(button.dataset.strength);
