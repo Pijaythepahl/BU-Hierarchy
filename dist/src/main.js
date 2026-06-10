@@ -20,6 +20,10 @@ let dragState = null;
 let menuOpen = false;
 let isAnimatingChoice = false;
 
+function isTouchMode() {
+  return window.matchMedia?.("(pointer: coarse)")?.matches || navigator.maxTouchPoints > 0;
+}
+
 function persist(patch = {}) {
   state = saveState({ ...state, ...patch });
 }
@@ -92,13 +96,13 @@ function removePerson(id) {
   render();
 }
 
-function choose(winnerId) {
+function choose(winnerId, strengthOverride = selectedStrength) {
   const pair = ensureActivePair();
   if (!pair || isAnimatingChoice) return;
   const comparisons = setComparison({
     pair,
     winnerId,
-    strength: selectedStrength,
+    strength: strengthOverride,
     existing: state.comparisons
   });
   const nextPair = getNextPair(state.people, comparisons, pair.key);
@@ -117,24 +121,32 @@ function choose(winnerId) {
   }
 }
 
-function animateAndChoose(winnerId, direction) {
+function animateAndChoose(winnerId, direction, strengthOverride = selectedStrength) {
   if (isAnimatingChoice) return;
   const card = app.querySelector(`[data-card-choice="${winnerId}"]`);
   if (!card) {
-    choose(winnerId);
+    choose(winnerId, strengthOverride);
     return;
   }
-  animateCardAndChoose(card, winnerId, direction);
+  animateCardAndChoose(card, winnerId, direction, strengthOverride);
 }
 
-function animateCardAndChoose(card, winnerId, direction) {
+function animateCardAndChoose(card, winnerId, direction, strengthOverride = selectedStrength) {
   isAnimatingChoice = true;
   card.style.transform = "";
   card.style.opacity = "";
-  card.classList.add(direction === "left" ? "is-exiting-left" : "is-exiting-right");
+  const exitClass =
+    direction === "left"
+      ? "is-exiting-left"
+      : direction === "right"
+        ? "is-exiting-right"
+        : direction === "up"
+          ? "is-exiting-up"
+          : "is-exiting-down";
+  card.classList.add(exitClass);
   setTimeout(() => {
     isAnimatingChoice = false;
-    choose(winnerId);
+    choose(winnerId, strengthOverride);
   }, 230);
 }
 
@@ -320,8 +332,17 @@ function compareContent(pair, ranking) {
           <p>${escapeHtml(pairLabel)}</p>
         </div>
         <div class="card-stage" data-swipe-stage>
+          <div class="gesture-zones" aria-hidden="true">
+            <span class="zone zone-top">Stark</span>
+            <span class="zone zone-left">Deutlich</span>
+            <span class="zone zone-right">Deutlich</span>
+            <span class="zone zone-bottom">Leicht</span>
+          </div>
           ${choiceCard(pair.a, "left")}
           ${choiceCard(pair.b, "right")}
+        </div>
+        <div class="touch-equal-panel">
+          <button type="button" data-choose="tie">Gleich</button>
         </div>
         <div class="strength-panel" aria-label="Stärke">
           <span>Stärke</span>
@@ -463,6 +484,7 @@ function bindCompareEvents() {
   app.querySelectorAll("[data-card-choice]").forEach((button) => {
     button.addEventListener("click", () => {
       if (button.dataset.suppressClick === "true") return;
+      if (isTouchMode()) return;
       const direction = button.classList.contains("left") ? "left" : "right";
       animateAndChoose(button.dataset.cardChoice, direction);
     });
@@ -512,7 +534,8 @@ function bindSwipe(pair) {
     if (!dragState) return;
     dragState.currentX = event.clientX;
     const offset = event.clientX - dragState.startX;
-    const verticalOffset = Math.abs(event.clientY - dragState.startY);
+    const vertical = event.clientY - dragState.startY;
+    const verticalOffset = Math.abs(vertical);
     const horizontalOffset = Math.abs(offset);
     if (horizontalOffset > 8 && horizontalOffset > verticalOffset) {
       event.preventDefault();
@@ -523,19 +546,32 @@ function bindSwipe(pair) {
       dragState.card.classList.add("is-dragging");
       dragState.card.style.transform = `translateX(${offset}px) rotate(${rotation}deg)`;
       dragState.card.style.opacity = `${opacity}`;
+      updateGestureZone(stage, dragState.card, offset, vertical);
+    } else if (verticalOffset > 8 && verticalOffset > horizontalOffset && isTouchMode()) {
+      event.preventDefault();
+      dragState.didSwipe = true;
+      dragState.suppressClick = true;
+      const rotation = Math.max(-7, Math.min(7, offset / 18));
+      const opacity = Math.max(0.72, 1 - verticalOffset / 560);
+      dragState.card.classList.add("is-dragging");
+      dragState.card.style.transform = `translate(${offset}px, ${vertical}px) rotate(${rotation}deg)`;
+      dragState.card.style.opacity = `${opacity}`;
+      updateGestureZone(stage, dragState.card, offset, vertical);
     }
   });
 
   stage.addEventListener("pointerup", (event) => {
     if (!dragState) return;
     const offset = event.clientX - dragState.startX;
+    const vertical = event.clientY - dragState.startY;
     const { card, winnerId, didSwipe, suppressClick } = dragState;
     dragState = null;
     card.classList.remove("is-dragging");
+    stage.dataset.activeZone = "";
     if (!didSwipe) return;
-    const threshold = Math.max(72, card.clientWidth * 0.36);
-    if (Math.abs(offset) >= threshold) {
-      animateCardAndChoose(card, winnerId, offset < 0 ? "left" : "right");
+    const gesture = resolveGesture(card, offset, vertical);
+    if (gesture) {
+      animateCardAndChoose(card, winnerId, gesture.exitDirection, gesture.strength);
       return;
     }
     card.classList.add("is-returning");
@@ -554,8 +590,47 @@ function bindSwipe(pair) {
       dragState.card.style.transform = "";
       dragState.card.style.opacity = "";
     }
+    stage.dataset.activeZone = "";
     dragState = null;
   });
+}
+
+function resolveGesture(card, offset, vertical) {
+  const threshold = Math.max(72, card.clientWidth * 0.36);
+  const verticalThreshold = Math.max(82, card.clientHeight * 0.28);
+  const horizontalOffset = Math.abs(offset);
+  const verticalOffset = Math.abs(vertical);
+  const isLeftCard = card.classList.contains("left");
+
+  if (isTouchMode() && verticalOffset >= verticalThreshold && verticalOffset >= horizontalOffset * 0.82) {
+    return {
+      strength: vertical < 0 ? 7 : 3,
+      exitDirection: vertical < 0 ? "up" : "down"
+    };
+  }
+
+  const outward = isLeftCard ? offset < 0 : offset > 0;
+  if (outward && horizontalOffset >= threshold) {
+    return {
+      strength: isTouchMode() ? 5 : selectedStrength,
+      exitDirection: offset < 0 ? "left" : "right"
+    };
+  }
+
+  return null;
+}
+
+function updateGestureZone(stage, card, offset, vertical) {
+  const gesture = resolveGesture(card, offset, vertical);
+  if (!gesture || !isTouchMode()) {
+    stage.dataset.activeZone = "";
+    return;
+  }
+  if (gesture.strength === 7) stage.dataset.activeZone = "top";
+  if (gesture.strength === 3) stage.dataset.activeZone = "bottom";
+  if (gesture.strength === 5) {
+    stage.dataset.activeZone = card.classList.contains("left") ? "left" : "right";
+  }
 }
 
 function render() {
