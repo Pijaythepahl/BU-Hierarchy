@@ -1,0 +1,12 @@
+{
+  "name": "bu-hierarchy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BU Hierarchy - local AHP pairwise ranking app",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/ahp.test.mjs",
+    "serve": "node tools/static-server.mjs",
+    "build": "node tools/build.mjs"
+  }
+}

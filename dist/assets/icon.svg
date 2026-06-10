@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">BU Hierarchy app icon</title>
+  <rect width="512" height="512" rx="112" fill="#f8fafc"/>
+  <circle cx="256" cy="256" r="190" fill="#ecfeff"/>
+  <path d="M136 332h240" stroke="#0f766e" stroke-width="30" stroke-linecap="round"/>
+  <path d="M164 268h184" stroke="#2563eb" stroke-width="30" stroke-linecap="round"/>
+  <path d="M196 204h120" stroke="#0f766e" stroke-width="30" stroke-linecap="round"/>
+  <path d="M338 118l38 94-94-38z" fill="#f59e0b"/>
+  <path d="M282 174l94 38-38-94z" fill="#0f766e"/>
+  <text x="256" y="392" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="92" font-weight="800" fill="#0f172a">BU</text>
+</svg>
