@@ -120,7 +120,13 @@ function animateAndChoose(winnerId, direction) {
     choose(winnerId);
     return;
   }
+  animateCardAndChoose(card, winnerId, direction);
+}
+
+function animateCardAndChoose(card, winnerId, direction) {
   isAnimatingChoice = true;
+  card.style.transform = "";
+  card.style.opacity = "";
   card.classList.add(direction === "left" ? "is-exiting-left" : "is-exiting-right");
   setTimeout(() => {
     isAnimatingChoice = false;
@@ -420,6 +426,7 @@ function bindGlobalEvents() {
   });
   app.querySelectorAll("[data-card-choice]").forEach((button) => {
     button.addEventListener("click", () => {
+      if (button.dataset.suppressClick === "true") return;
       const direction = button.classList.contains("left") ? "left" : "right";
       animateAndChoose(button.dataset.cardChoice, direction);
     });
@@ -451,36 +458,67 @@ function bindSwipe(pair) {
 
   stage.addEventListener("pointerdown", (event) => {
     if (isAnimatingChoice) return;
+    const card = event.target.closest(".choice-card");
+    if (!card || !stage.contains(card)) return;
     dragState = {
+      card,
+      winnerId: card.dataset.cardChoice,
       startX: event.clientX,
       startY: event.clientY,
       currentX: event.clientX,
-      didSwipe: false
+      didSwipe: false,
+      suppressClick: false
     };
+    card.setPointerCapture?.(event.pointerId);
   });
 
   stage.addEventListener("pointermove", (event) => {
     if (!dragState) return;
     dragState.currentX = event.clientX;
     const offset = event.clientX - dragState.startX;
-    dragState.didSwipe = Math.abs(offset) > 12;
-    stage.style.setProperty("--swipe-x", `${Math.max(-80, Math.min(80, offset))}px`);
+    const verticalOffset = Math.abs(event.clientY - dragState.startY);
+    const horizontalOffset = Math.abs(offset);
+    if (horizontalOffset > 8 && horizontalOffset > verticalOffset) {
+      event.preventDefault();
+      dragState.didSwipe = true;
+      dragState.suppressClick = true;
+      const rotation = Math.max(-10, Math.min(10, offset / 14));
+      const opacity = Math.max(0.72, 1 - horizontalOffset / 520);
+      dragState.card.classList.add("is-dragging");
+      dragState.card.style.transform = `translateX(${offset}px) rotate(${rotation}deg)`;
+      dragState.card.style.opacity = `${opacity}`;
+    }
   });
 
   stage.addEventListener("pointerup", (event) => {
     if (!dragState) return;
     const offset = event.clientX - dragState.startX;
-    const didSwipe = dragState.didSwipe;
-    stage.style.removeProperty("--swipe-x");
+    const { card, winnerId, didSwipe, suppressClick } = dragState;
     dragState = null;
+    card.classList.remove("is-dragging");
     if (!didSwipe) return;
-    if (offset > 64) animateAndChoose(pair.b.id, "right");
-    if (offset < -64) animateAndChoose(pair.a.id, "left");
+    const threshold = Math.max(72, card.clientWidth * 0.36);
+    if (Math.abs(offset) >= threshold) {
+      animateCardAndChoose(card, winnerId, offset < 0 ? "left" : "right");
+      return;
+    }
+    card.classList.add("is-returning");
+    card.style.transform = "";
+    card.style.opacity = "";
+    setTimeout(() => card.classList.remove("is-returning"), 180);
+    if (suppressClick) {
+      card.dataset.suppressClick = "true";
+      setTimeout(() => delete card.dataset.suppressClick, 0);
+    }
   });
 
   stage.addEventListener("pointercancel", () => {
+    if (dragState?.card) {
+      dragState.card.classList.remove("is-dragging");
+      dragState.card.style.transform = "";
+      dragState.card.style.opacity = "";
+    }
     dragState = null;
-    stage.style.removeProperty("--swipe-x");
   });
 }
 
