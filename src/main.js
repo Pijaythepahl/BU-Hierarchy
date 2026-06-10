@@ -1,5 +1,6 @@
 import {
   STRENGTHS,
+  computeConsistency,
   computeRanking,
   createId,
   generatePairs,
@@ -174,6 +175,16 @@ function resetComparisons() {
   render();
 }
 
+function dismissTouchOnboarding() {
+  persist({
+    ui: {
+      ...(state.ui || {}),
+      touchOnboardingSeen: true
+    }
+  });
+  render();
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -219,10 +230,30 @@ function renderShell(content) {
         ${navButton("compare", "Vergleichen", "⇄")}
         ${navButton("ranking", "Ranking", "≡")}
       </nav>
+      ${touchOnboardingHtml()}
     </main>
   `;
 
   bindGlobalEvents();
+}
+
+function touchOnboardingHtml() {
+  if (!isTouchMode() || state.ui?.touchOnboardingSeen) return "";
+  return `
+    <div class="onboarding-backdrop" role="presentation">
+      <section class="touch-onboarding" role="dialog" aria-modal="true" aria-labelledby="touch-onboarding-title">
+        <h2 id="touch-onboarding-title">Gesten auf dem iPhone</h2>
+        <div class="gesture-guide">
+          <span>↑ Stark</span>
+          <span>←/→ Deutlich</span>
+          <span>↓ Leicht</span>
+          <span>Gleich per Button</span>
+        </div>
+        <p>Ziehe die stärkere Karte in die passende Richtung. Die Zielzonen erscheinen, sobald du eine Karte berührst.</p>
+        <button type="button" data-action="dismiss-onboarding">Verstanden</button>
+      </section>
+    </div>
+  `;
 }
 
 function statusStripHtml(progress) {
@@ -338,6 +369,7 @@ function compareContent(pair, ranking) {
             <span class="zone zone-right">Deutlich</span>
             <span class="zone zone-bottom">Leicht</span>
           </div>
+          <div class="gesture-feedback" aria-live="polite"></div>
           ${choiceCard(pair.a, "left")}
           ${choiceCard(pair.b, "right")}
         </div>
@@ -399,6 +431,7 @@ function choiceCard(person, side) {
 
 function renderRanking() {
   const ranking = computeRanking(state.people, state.comparisons);
+  const consistency = computeConsistency(state.people, state.comparisons);
   const completeLabel = ranking.isComplete ? "Vollständig" : "Vorläufig";
   renderShell(`
     <section class="view ranking-view">
@@ -413,9 +446,19 @@ function renderRanking() {
         </div>
         <div class="progress-track"><span style="width: ${ranking.progress.percent}%"></span></div>
       </div>
+      ${consistencyBadgeHtml(consistency)}
       ${rankingList(ranking.ranked, false)}
     </section>
   `);
+}
+
+function consistencyBadgeHtml(consistency) {
+  return `
+    <div class="consistency-card ${consistency.status}">
+      <span>Konsistenz: ${escapeHtml(consistency.label)}</span>
+      <p>${escapeHtml(consistency.message)}</p>
+    </div>
+  `;
 }
 
 function rankingList(items, compact) {
@@ -452,6 +495,9 @@ function bindGlobalEvents() {
   });
   app.querySelector("[data-action='reset-comparisons']")?.addEventListener("click", resetComparisons);
   app.querySelector("[data-action='reset-all']")?.addEventListener("click", resetAll);
+  app
+    .querySelector("[data-action='dismiss-onboarding']")
+    ?.addEventListener("click", dismissTouchOnboarding);
   app.querySelector("[data-form='add-person']")?.addEventListener("submit", addPerson);
   app.querySelectorAll("[data-remove-person]").forEach((button) => {
     button.addEventListener("click", () => removePerson(button.dataset.removePerson));
@@ -572,6 +618,7 @@ function bindSwipe(pair) {
     card.classList.remove("is-dragging");
     stage.classList.remove("is-gesture-active");
     stage.dataset.activeZone = "";
+    setGestureFeedback(stage, "");
     if (!didSwipe) return;
     const gesture = resolveGesture(card, offset, vertical);
     if (gesture) {
@@ -588,7 +635,7 @@ function bindSwipe(pair) {
     }
   });
 
-    stage.addEventListener("pointercancel", () => {
+  stage.addEventListener("pointercancel", () => {
     if (dragState?.card) {
       dragState.card.classList.remove("is-dragging");
       dragState.card.style.transform = "";
@@ -596,6 +643,7 @@ function bindSwipe(pair) {
     }
     stage.classList.remove("is-gesture-active");
     stage.dataset.activeZone = "";
+    setGestureFeedback(stage, "");
     dragState = null;
   });
 }
@@ -627,15 +675,47 @@ function resolveGesture(card, offset, vertical) {
 
 function updateGestureZone(stage, card, offset, vertical) {
   const gesture = resolveGesture(card, offset, vertical);
-  if (!gesture || !isTouchMode()) {
+  if (!isTouchMode()) {
     stage.dataset.activeZone = "";
+    setGestureFeedback(stage, "");
     return;
   }
-  if (gesture.strength === 7) stage.dataset.activeZone = "top";
-  if (gesture.strength === 3) stage.dataset.activeZone = "bottom";
-  if (gesture.strength === 5) {
+
+  const preview = gesture || previewGesture(card, offset, vertical);
+  if (!preview) {
+    stage.dataset.activeZone = "";
+    setGestureFeedback(stage, "");
+    return;
+  }
+
+  if (preview.strength === 7) stage.dataset.activeZone = "top";
+  if (preview.strength === 3) stage.dataset.activeZone = "bottom";
+  if (preview.strength === 5) {
     stage.dataset.activeZone = card.classList.contains("left") ? "left" : "right";
   }
+  const label = preview.strength === 7 ? "stark" : preview.strength === 5 ? "deutlich" : "leicht";
+  const name = card.querySelector("strong")?.textContent || "Person";
+  setGestureFeedback(stage, `${name}: ${label} stärker`);
+}
+
+function previewGesture(card, offset, vertical) {
+  const horizontalOffset = Math.abs(offset);
+  const verticalOffset = Math.abs(vertical);
+  const isLeftCard = card.classList.contains("left");
+  if (Math.max(horizontalOffset, verticalOffset) < 24) return null;
+  if (verticalOffset >= horizontalOffset * 0.82) {
+    return {
+      strength: vertical < 0 ? 7 : 3
+    };
+  }
+  const outward = isLeftCard ? offset < 0 : offset > 0;
+  return outward ? { strength: 5 } : null;
+}
+
+function setGestureFeedback(stage, text) {
+  const feedback = stage.querySelector(".gesture-feedback");
+  if (!feedback) return;
+  feedback.textContent = text;
 }
 
 function render() {

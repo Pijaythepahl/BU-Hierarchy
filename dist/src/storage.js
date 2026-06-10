@@ -10,6 +10,9 @@ export function createEmptyState() {
     people: [],
     comparisons: {},
     activePairKey: null,
+    ui: {
+      touchOnboardingSeen: false
+    },
     createdAt: now,
     updatedAt: now
   };
@@ -26,6 +29,10 @@ export function loadState() {
     return {
       ...createEmptyState(),
       ...parsed,
+      ui: {
+        ...createEmptyState().ui,
+        ...(parsed.ui || {})
+      },
       comparisons: normalizeComparisons(parsed.comparisons || {}, parsed.people)
     };
   } catch {

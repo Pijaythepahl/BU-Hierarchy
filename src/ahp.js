@@ -5,6 +5,24 @@ export const STRENGTHS = [
   { value: 7, label: "Stark", tone: "high" }
 ];
 
+const RANDOM_INDEX = {
+  1: 0,
+  2: 0,
+  3: 0.58,
+  4: 0.9,
+  5: 1.12,
+  6: 1.24,
+  7: 1.32,
+  8: 1.41,
+  9: 1.45,
+  10: 1.49,
+  11: 1.51,
+  12: 1.48,
+  13: 1.56,
+  14: 1.57,
+  15: 1.59
+};
+
 export function createId(prefix = "id") {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -130,5 +148,92 @@ export function computeRanking(people, comparisons) {
     ranked,
     progress: getProgress(people, validComparisons),
     isComplete: getProgress(people, validComparisons).open === 0 && people.length > 1
+  };
+}
+
+export function comparisonValue(comparison, personAId, personBId) {
+  if (comparison.winnerId === "tie") return 1;
+  if (comparison.personAId === personAId && comparison.personBId === personBId) {
+    return comparison.winnerId === personAId ? comparison.strength : 1 / comparison.strength;
+  }
+  return comparison.winnerId === personAId ? comparison.strength : 1 / comparison.strength;
+}
+
+export function computeConsistency(people, comparisons) {
+  const progress = getProgress(people, comparisons);
+  const n = people.length;
+  const ri = RANDOM_INDEX[n];
+
+  if (n < 3) {
+    return {
+      available: false,
+      status: "unavailable",
+      label: "nicht verfügbar",
+      message: "Konsistenz ist erst ab 3 Personen sinnvoll."
+    };
+  }
+
+  if (progress.open > 0) {
+    return {
+      available: false,
+      status: "pending",
+      label: "nach Abschluss verfügbar",
+      message: "Konsistenz nach Abschluss verfügbar."
+    };
+  }
+
+  if (!ri) {
+    return {
+      available: false,
+      status: "unavailable",
+      label: "nicht verfügbar",
+      message: "Für diese Anzahl Personen ist keine Konsistenz-Ampel hinterlegt."
+    };
+  }
+
+  const validComparisons = normalizeComparisons(comparisons, people);
+  const matrix = people.map((rowPerson) =>
+    people.map((columnPerson) => {
+      if (rowPerson.id === columnPerson.id) return 1;
+      const comparison = validComparisons[pairKey(rowPerson.id, columnPerson.id)];
+      return comparison ? comparisonValue(comparison, rowPerson.id, columnPerson.id) : 1;
+    })
+  );
+
+  let vector = Array(n).fill(1 / n);
+  for (let iteration = 0; iteration < 60; iteration += 1) {
+    const next = matrix.map((row) =>
+      row.reduce((sum, value, index) => sum + value * vector[index], 0)
+    );
+    const total = next.reduce((sum, value) => sum + value, 0) || 1;
+    vector = next.map((value) => value / total);
+  }
+
+  const weighted = matrix.map((row) =>
+    row.reduce((sum, value, index) => sum + value * vector[index], 0)
+  );
+  const lambdaMax =
+    weighted.reduce((sum, value, index) => sum + value / (vector[index] || 1), 0) / n;
+  const consistencyIndex = (lambdaMax - n) / (n - 1);
+  const consistencyRatio = Math.max(0, consistencyIndex / ri);
+
+  const status =
+    consistencyRatio <= 0.1 ? "good" : consistencyRatio <= 0.2 ? "warning" : "review";
+  const label = status === "good" ? "gut" : status === "warning" ? "auffällig" : "prüfen";
+  const message =
+    status === "good"
+      ? "Die Paarvergleiche wirken in sich stimmig."
+      : status === "warning"
+        ? "Einige Paarvergleiche könnten leicht widersprüchlich sein."
+        : "Hinweis auf widersprüchliche Paarvergleiche.";
+
+  return {
+    available: true,
+    status,
+    label,
+    message,
+    lambdaMax,
+    consistencyIndex,
+    consistencyRatio
   };
 }

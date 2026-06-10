@@ -1,4 +1,4 @@
-const CACHE_NAME = "bu-hierarchy-v2";
+const CACHE_NAME = "bu-hierarchy-v3";
 const ASSETS = [
   "./",
   "./index.html",

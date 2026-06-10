@@ -530,6 +530,31 @@ button:focus-visible {
   background: var(--accent);
   color: #fff;
   opacity: 1;
+  transform: scale(1.08);
+}
+
+.card-stage[data-active-zone="top"] .zone-top,
+.card-stage[data-active-zone="bottom"] .zone-bottom {
+  transform: translateX(-50%) scale(1.08);
+}
+
+.card-stage[data-active-zone="left"] .zone-left,
+.card-stage[data-active-zone="right"] .zone-right {
+  transform: translateY(-50%) scale(1.08);
+}
+
+.gesture-feedback {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  z-index: 5;
+  min-height: 28px;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 850;
+  text-align: center;
+  pointer-events: none;
 }
 
 .strength-panel {
@@ -583,6 +608,103 @@ button:focus-visible {
   background: #475569;
   color: #fff;
   font-weight: 850;
+}
+
+.consistency-card {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #f8fafc;
+}
+
+.consistency-card span {
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.consistency-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.consistency-card.good {
+  border-color: rgba(15, 118, 110, 0.28);
+  background: #ecfdf5;
+}
+
+.consistency-card.warning {
+  border-color: rgba(245, 158, 11, 0.42);
+  background: #fffbeb;
+}
+
+.consistency-card.review {
+  border-color: rgba(180, 83, 9, 0.36);
+  background: #fff7ed;
+}
+
+.onboarding-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  align-items: end;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.24);
+}
+
+.touch-onboarding {
+  display: grid;
+  gap: 14px;
+  width: min(100%, 440px);
+  margin: 0 auto max(10px, env(safe-area-inset-bottom));
+  padding: 18px;
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+}
+
+.touch-onboarding h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.touch-onboarding p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.touch-onboarding button {
+  min-height: 46px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 850;
+}
+
+.gesture-guide {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gesture-guide span {
+  display: grid;
+  min-height: 42px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 850;
+  text-align: center;
 }
 
 .ranking-preview {
