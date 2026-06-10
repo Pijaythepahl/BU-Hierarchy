@@ -518,6 +518,9 @@ function bindSwipe(pair) {
     if (isAnimatingChoice) return;
     const card = event.target.closest(".choice-card");
     if (!card || !stage.contains(card)) return;
+    if (isTouchMode()) {
+      stage.classList.add("is-gesture-active");
+    }
     dragState = {
       card,
       winnerId: card.dataset.cardChoice,
@@ -567,6 +570,7 @@ function bindSwipe(pair) {
     const { card, winnerId, didSwipe, suppressClick } = dragState;
     dragState = null;
     card.classList.remove("is-dragging");
+    stage.classList.remove("is-gesture-active");
     stage.dataset.activeZone = "";
     if (!didSwipe) return;
     const gesture = resolveGesture(card, offset, vertical);
@@ -584,12 +588,13 @@ function bindSwipe(pair) {
     }
   });
 
-  stage.addEventListener("pointercancel", () => {
+    stage.addEventListener("pointercancel", () => {
     if (dragState?.card) {
       dragState.card.classList.remove("is-dragging");
       dragState.card.style.transform = "";
       dragState.card.style.opacity = "";
     }
+    stage.classList.remove("is-gesture-active");
     stage.dataset.activeZone = "";
     dragState = null;
   });
